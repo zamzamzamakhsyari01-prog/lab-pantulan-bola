@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.idea/
+.vscode/
+LabGetaran_*/
+LabGetaran_Rekaman/
+*.mp4
+*.avi
+*.mov
+*.xlsx
+.DS_Store

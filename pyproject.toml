@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab-pantulan-bola"
+version = "1.0.0"
+description = "Lab pantulan bola: simulasi RK4, pelacakan video, dan estimasi koefisien restitusi"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.8",
+    "matplotlib>=3.5",
+    "opencv-python>=4.5",
+    "pillow>=9.0",
+]
+
+[project.optional-dependencies]
+serial = ["pyserial>=3.5"]
+excel = ["openpyxl>=3.0"]
+all = ["pyserial>=3.5", "openpyxl>=3.0"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+lab-pantulan = "lab_pantulan.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
