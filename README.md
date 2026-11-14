@@ -17,6 +17,12 @@ Aplikasi desktop (Tkinter) untuk praktikum **pantulan bola**: simulasi numerik d
 - **Ekspor**: grafik PNG, Excel, foto dokumentasi video, laporan TXT.
 - **Pelepas bola otomatis** lewat gearbox ESP32 (`arduino/gearbox_esp32`).
 
+## Versi web (tanpa instalasi)
+
+Buka **https://zamzamzamakhsyari01-prog.github.io/lab-pantulan-bola/** — simulasi RK4 dan analisis koefisien restitusi dari CSV berjalan langsung di browser (Pyodide). Data tidak dikirim ke server; riwayat tersimpan di perangkat Anda. Pelacakan video, kamera, dan gearbox ESP32 hanya ada di aplikasi desktop.
+
+Kode situs ada di `docs/`. Setelah mengubah `core_fisika.py`, jalankan `python scripts/sync_web.py`.
+
 ## Instalasi
 
 ```bash
@@ -58,6 +64,7 @@ src/lab_pantulan/
   core_fisika.py   # RK4, model pantulan, analisis & validasi
   akuisisi.py      # kalibrasi, pelacak, sumber video/serial, CSV
   app.py           # GUI Tkinter
+docs/                    # situs GitHub Pages (Pyodide + Plotly)
 arduino/gearbox_esp32/   # sketch pelepas bola
 tests/
 ```

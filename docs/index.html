@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Pantulan Bola</title>
+<meta name="description" content="Simulasi RK4 dan analisis koefisien restitusi pantulan bola, berjalan di browser.">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#5b6573;--bd:#d9dee5;--ac:#1f6feb;--ok:#1a7f37;--warn:#9a6700;--err:#cf222e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--tx:#e6edf3;--mut:#8b949e;--bd:#30363d;--ac:#58a6ff;--ok:#3fb950;--warn:#d29922;--err:#f85149}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:16px 20px;border-bottom:1px solid var(--bd);background:var(--card)}
+header h1{margin:0;font-size:20px}
+header p{margin:2px 0 0;color:var(--mut);font-size:13px}
+#status{padding:8px 20px;font-size:13px;border-bottom:1px solid var(--bd);color:var(--mut)}
+#status.ok{color:var(--ok)}#status.err{color:var(--err)}
+nav{display:flex;gap:4px;padding:10px 20px 0;flex-wrap:wrap}
+nav button{border:1px solid var(--bd);border-bottom:none;background:transparent;color:var(--mut);padding:8px 14px;border-radius:8px 8px 0 0;cursor:pointer;font-size:14px}
+nav button.on{background:var(--card);color:var(--tx);font-weight:600}
+main{padding:0 20px 40px}
+section{display:none;background:var(--card);border:1px solid var(--bd);border-radius:0 10px 10px 10px;padding:16px}
+section.on{display:block}
+.grid{display:grid;grid-template-columns:minmax(240px,300px) 1fr;gap:18px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+fieldset{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin:0 0 12px}
+legend{font-weight:600;font-size:13px;padding:0 6px}
+label{display:grid;grid-template-columns:1fr 110px;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+label.full{grid-template-columns:1fr}
+input,select,textarea{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 7px;font:inherit;width:100%}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:12px;min-height:90px}
+button.p,button.s{border-radius:6px;padding:7px 12px;cursor:pointer;font:inherit;border:1px solid var(--bd);margin:3px 4px 3px 0}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+button.s{background:var(--bg);color:var(--tx)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 12px}
+.card{border:1px solid var(--bd);border-radius:8px;padding:8px 10px}
+.card b{display:block;font-size:20px}
+.card span{color:var(--mut);font-size:12px}
+.plot{width:100%;height:340px;margin-bottom:10px}
+pre{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;overflow:auto;font-size:12px;max-height:420px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0 12px}
+th,td{border:1px solid var(--bd);padding:4px 7px;text-align:center}
+th{background:var(--bg)}
+.warn{color:var(--warn);font-size:13px;margin:4px 0}
+.hint{color:var(--mut);font-size:12.5px}
+footer{padding:14px 20px;color:var(--mut);font-size:12.5px}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lab Pantulan Bola</h1>
+  <p>Simulasi RK4 dan estimasi koefisien restitusi — semua berjalan di browser Anda, data tidak dikirim ke server mana pun.</p>
+</header>
+<div id="status">Memuat mesin Python (Pyodide)… pertama kali bisa 20–60 detik, selanjutnya cepat.</div>
+
+<nav>
+  <button class="on" data-tab="sim">Simulasi RK4</button>
+  <button data-tab="ana">Analisis Data (CSV)</button>
+  <button data-tab="riw">Riwayat</button>
+  <button data-tab="bantu">Bantuan</button>
+</nav>
+
+<main>
+<!-- ============ SIMULASI ============ -->
+<section id="sim" class="on">
+ <div class="grid">
+  <div>
+   <fieldset><legend>Parameter</legend>
+    <label>Massa m (kg)<input id="p_m" type="number" step="any" value="0.06"></label>
+    <label>Koef. restitusi e<input id="p_e" type="number" step="any" min="0.01" max="0.99" value="0.8"></label>
+    <label>Tinggi awal y₀ (m)<input id="p_x0" type="number" step="any" value="1.0"></label>
+    <label>Kecepatan awal v₀ (m/s)<input id="p_v0" type="number" step="any" value="0"></label>
+    <label>Redaman udara c (kg/s)<input id="p_c" type="number" step="any" value="0"></label>
+    <label>Gravitasi g (m/s²)<input id="p_g" type="number" step="any" value="9.81"></label>
+    <label>Hambatan udara<select id="p_hambatan"><option>linier</option><option>kuadratik</option></select></label>
+    <label>Waktu akhir (s)<input id="p_t_akhir" type="number" step="any" value="4"></label>
+    <label>Langkah h (s)<input id="p_h" type="number" step="any" value="0.005"></label>
+   </fieldset>
+   <button class="p" id="btnSim" disabled>▶ Hitung &amp; Plot</button>
+   <button class="s" id="btnSimSimpan" disabled>💾 Simpan ke Riwayat</button>
+   <button class="s" id="btnSimCsv" disabled>⬇ CSV</button>
+  </div>
+  <div>
+   <pre id="simInfo" hidden></pre>
+   <div id="plotSimPos" class="plot"></div>
+   <div id="plotSimVel" class="plot"></div>
+  </div>
+ </div>
+</section>
+
+<!-- ============ ANALISIS ============ -->
+<section id="ana">
+ <div class="grid">
+  <div>
+   <fieldset><legend>Data</legend>
+    <label class="full">Berkas CSV (t, y) atau (t, x, y)<input id="fileCsv" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
+    <label class="full">…atau tempel isi CSV di sini<textarea id="csvTeks" placeholder="t_s,y_m&#10;0.000,1.000&#10;0.016,0.998&#10;…"></textarea></label>
+    <button class="s" id="btnContoh" disabled>🧪 Data contoh (sintetis)</button>
+   </fieldset>
+   <fieldset><legend>Pengaturan</legend>
+    <label>Satuan ketinggian<select id="a_satuan"><option value="m">meter</option><option value="cm">sentimeter</option></select></label>
+    <label>Tarik titik terendah ke 0<select id="a_geser"><option value="1">ya</option><option value="0">tidak (data sudah y = 0 di lantai)</option></select></label>
+    <label>y lantai manual (m)<input id="a_lantai" type="number" step="any" placeholder="otomatis"></label>
+    <label>Prominence puncak (0–1)<input id="a_prom" type="number" step="any" value="0.02"></label>
+    <label>Gravitasi g (m/s²)<input id="a_g" type="number" step="any" value="9.81"></label>
+   </fieldset>
+   <button class="p" id="btnAna" disabled>▶ Analisis Pantulan</button>
+   <button class="s" id="btnAnaSimpan" disabled>💾 Simpan ke Riwayat</button>
+   <p class="hint">Tip: data dari aplikasi desktop (Tab 2 → Simpan data ke CSV) bisa langsung diunggah di sini.</p>
+  </div>
+  <div id="anaHasil">
+   <p class="hint">Unggah CSV atau pakai data contoh, lalu tekan <b>Analisis Pantulan</b>.</p>
+  </div>
+ </div>
+</section>
+
+<!-- ============ RIWAYAT ============ -->
+<section id="riw">
+ <p class="hint">Disimpan di browser perangkat ini (IndexedDB). Menghapus data situs di pengaturan browser akan menghapus riwayat — ekspor dulu bila perlu.</p>
+ <button class="s" id="btnRiwEkspor">⬇ Ekspor semua (JSON)</button>
+ <button class="s" id="btnRiwHapus">🗑 Hapus semua</button>
+ <div id="riwList"></div>
+</section>
+
+<!-- ============ BANTUAN ============ -->
+<section id="bantu">
+ <h3>Cara pakai</h3>
+ <ol>
+  <li><b>Simulasi RK4</b>: isi parameter, tekan Hitung. Puncak (▼) dan kecepatan sebelum/sesudah tumbukan ditandai otomatis.</li>
+  <li><b>Analisis Data</b>: unggah CSV hasil pelacakan (kolom pertama = waktu dalam detik). Aplikasi menyesuaikan parabola pada tiap penerbangan, lalu menghitung <i>e</i> dari tinggi, kecepatan tumbukan, dan waktu terbang.</li>
+  <li><b>Riwayat</b>: hasil bisa disimpan di browser perangkat Anda dan dibuka lagi kapan saja.</li>
+ </ol>
+ <h3>Batasan versi web</h3>
+ <p>Pelacakan video, kamera langsung, dan kendali gearbox ESP32 hanya ada di <a id="lnkRepo" href="#">aplikasi desktop</a>. Versi web berfokus pada simulasi dan analisis data.</p>
+ <h3>Rumus</h3>
+ <p>Tanpa hambatan: <code>y(t) = y_v − (g/2)(t − t_v)²</code>, tinggi puncak ke-n <code>h_n = h₀·e²ⁿ</code>, sehingga <code>e = √(h_{n+1}/h_n)</code>; dari kecepatan <code>e = −v_sesudah / v_sebelum</code>; dari waktu terbang <code>e = T_{n+1}/T_n</code>.</p>
+</section>
+</main>
+<footer>Lisensi MIT · <a id="lnkRepo2" href="#">Kode sumber di GitHub</a></footer>
+
+<script>
+"use strict";
+const REPO = "https://github.com/zamzamzamakhsyari01-prog/lab-pantulan-bola";
+document.getElementById("lnkRepo").href = REPO;
+document.getElementById("lnkRepo2").href = REPO;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 4) => (v === null || v === undefined || !isFinite(v)) ? "n/a" : Number(v).toFixed(d);
+
+function setStatus(teks, kelas = "") { const s = $("status"); s.textContent = teks; s.className = kelas; }
+
+// ---------- tab ----------
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === b.dataset.tab));
+  window.dispatchEvent(new Event("resize"));
+  if (b.dataset.tab === "riw") tampilRiwayat();
+}));
+
+// ---------- IndexedDB (riwayat, tersimpan di perangkat ini) ----------
+const DB = {
+  buka() {
+    return new Promise((ok, gagal) => {
+      const r = indexedDB.open("lab-pantulan", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("riwayat", { keyPath: "id", autoIncrement: true });
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => gagal(r.error);
+    });
+  },
+  async tx(mode, fn) {
+    const db = await this.buka();
+    return new Promise((ok, gagal) => {
+      const t = db.transaction("riwayat", mode);
+      const hasil = fn(t.objectStore("riwayat"));
+      t.oncomplete = () => ok(hasil.result);
+      t.onerror = () => gagal(t.error);
+    });
+  },
+  tambah(o) { return this.tx("readwrite", (s) => s.add(o)); },
+  semua() { return this.tx("readonly", (s) => s.getAll()); },
+  hapus(id) { return this.tx("readwrite", (s) => s.delete(id)); },
+  kosongkan() { return this.tx("readwrite", (s) => s.clear()); },
+};
+
+function unduh(nama, isi, tipe = "text/plain") {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([isi], { type: tipe + ";charset=utf-8" }));
+  a.download = nama;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ---------- Pyodide ----------
+let lab = null;
+async function mulaiPython() {
+  try {
+    const py = await loadPyodide();
+    setStatus("Memuat numpy & scipy…");
+    await py.loadPackage(["numpy", "scipy"]);
+    for (const f of ["core_fisika.py", "lab_web.py"]) {
+      const r = await fetch(f + "?v=" + Date.now());
+      if (!r.ok) throw new Error("Gagal mengambil " + f);
+      py.FS.writeFile(f, await r.text());
+    }
+    py.runPython("import os, sys\nsys.path.insert(0, os.getcwd())");
+    lab = py.pyimport("lab_web");
+    ["btnSim", "btnContoh", "btnAna"].forEach((i) => ($(i).disabled = false));
+    setStatus("Siap. Mesin Python sudah berjalan di browser Anda.", "ok");
+    jalankanSim();
+  } catch (e) {
+    console.error(e);
+    setStatus("Gagal memuat Python: " + e.message + " — periksa koneksi internet lalu muat ulang.", "err");
+  }
+}
+function panggil(fn, ...args) {
+  return JSON.parse(lab[fn](...args));
+}
+const layoutDasar = (judul, sx, sy) => ({
+  title: { text: judul, font: { size: 14 } }, margin: { t: 40, r: 15, b: 45, l: 55 },
+  xaxis: { title: sx }, yaxis: { title: sy }, legend: { orientation: "h", y: -0.25 },
+  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+  font: { color: getComputedStyle(document.body).color },
+});
+const cfgPlot = { responsive: true, displaylogo: false };
+
+// ---------- SIMULASI ----------
+let simTerakhir = null, simParam = null;
+function bacaParamSim() {
+  const o = {};
+  ["m", "e", "x0", "v0", "c", "g", "t_akhir", "h"].forEach((k) => (o[k] = parseFloat($("p_" + k).value)));
+  o.hambatan = $("p_hambatan").value;
+  return o;
+}
+function jalankanSim() {
+  if (!lab) return;
+  try {
+    simParam = bacaParamSim();
+    if (!(simParam.e > 0 && simParam.e < 1)) throw new Error("e harus di antara 0 dan 1.");
+    const r = panggil("simulasi", JSON.stringify(simParam));
+    simTerakhir = r;
+    $("simInfo").hidden = false;
+    $("simInfo").textContent = r.info;
+    const pk = r.puncak;
+    Plotly.react("plotSimPos", [
+      { x: r.t, y: r.y, mode: "lines", name: "posisi (RK4)" },
+      { x: pk.map((p) => p.t), y: pk.map((p) => p.y), mode: "markers", name: "puncak",
+        marker: { symbol: "triangle-down", size: 9, color: "crimson" },
+        text: pk.map((p, i) => (p.jenis === "lepas" ? "L" : "P" + i)), hovertemplate: "%{text}: %{y:.3f} m @ %{x:.3f} s<extra></extra>" },
+    ], layoutDasar("Posisi terhadap waktu", "Waktu (s)", "Ketinggian y (m)"), cfgPlot);
+    const tb = r.tumbukan;
+    Plotly.react("plotSimVel", [
+      { x: r.t, y: r.v, mode: "lines", name: "kecepatan", line: { color: "#d2691e" } },
+      { x: tb.map((q) => q.t), y: tb.map((q) => q.v_sebelum), mode: "markers", name: "sebelum tumbukan", marker: { color: "blue", symbol: "triangle-down" } },
+      { x: tb.map((q) => q.t), y: tb.map((q) => q.v_sesudah), mode: "markers", name: "sesudah tumbukan", marker: { color: "green", symbol: "triangle-up" } },
+    ], layoutDasar("Kecepatan terhadap waktu", "Waktu (s)", "Kecepatan (m/s)"), cfgPlot);
+    $("btnSimSimpan").disabled = false;
+    $("btnSimCsv").disabled = false;
+    setStatus(`Simulasi selesai: ${r.t.length} titik, ${pk.length} puncak.`, "ok");
+  } catch (e) {
+    console.error(e);
+    setStatus("Simulasi gagal: " + e.message, "err");
+  }
+}
+$("btnSim").onclick = jalankanSim;
+$("btnSimCsv").onclick = () => {
+  if (!simTerakhir) return;
+  const r = simTerakhir;
+  unduh("prediksi_rk4.csv", "t_s,posisi,kecepatan\n" + r.t.map((t, i) => `${t},${r.y[i]},${r.v[i]}`).join("\n"), "text/csv");
+};
+$("btnSimSimpan").onclick = async () => {
+  if (!simTerakhir) return;
+  await DB.tambah({ jenis: "simulasi", waktu: new Date().toISOString(), param: simParam, ringkas: simTerakhir.info });
+  setStatus("Simulasi disimpan ke Riwayat.", "ok");
+};
+
+// ---------- ANALISIS ----------
+let anaTerakhir = null, anaCsv = "";
+$("fileCsv").onchange = async (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  $("csvTeks").value = await f.text();
+  setStatus("Berkas dimuat: " + f.name + ". Tekan Analisis Pantulan.", "ok");
+};
+$("btnContoh").onclick = () => {
+  try {
+    const csv = lab.sintetis(JSON.stringify({ e: 0.75, x0: 1.0, v0: 0, g: 9.81, c: 0, m: 0.06, hambatan: "linier", t_akhir: 3.5, fps: 120, derau: 0.01 }));
+    $("csvTeks").value = csv;
+    $("a_satuan").value = "m"; $("a_geser").value = "1";
+    setStatus("Data contoh dibuat (e sebenarnya 0,75 + derau 1%). Tekan Analisis Pantulan.", "ok");
+  } catch (e) { setStatus("Gagal: " + e.message, "err"); }
+};
+function tabelHtml(kolom, baris) {
+  return "<table><thead><tr>" + kolom.map((k) => `<th>${k[1]}</th>`).join("") + "</tr></thead><tbody>" +
+    baris.map((b) => "<tr>" + kolom.map((k) => `<td>${typeof b[k[0]] === "number" ? fmt(b[k[0]], k[2] ?? 4) : (b[k[0]] ?? "")}</td>`).join("") + "</tr>").join("") +
+    "</tbody></table>";
+}
+function jalankanAna() {
+  if (!lab) return;
+  const teks = $("csvTeks").value.trim();
+  if (!teks) { setStatus("Isi data CSV dulu (unggah berkas, tempel, atau pakai data contoh).", "err"); return; }
+  try {
+    setStatus("Menganalisis…");
+    const opsi = {
+      satuan: $("a_satuan").value, geser_min: $("a_geser").value === "1",
+      y_lantai: $("a_lantai").value === "" ? null : parseFloat($("a_lantai").value),
+      prom: parseFloat($("a_prom").value) || 0.02, g: parseFloat($("a_g").value) || 9.81,
+    };
+    const r = panggil("analisis", teks, JSON.stringify(opsi));
+    anaTerakhir = r; anaCsv = teks;
+    const H = $("anaHasil");
+    if (!r.berhasil) {
+      H.innerHTML = `<p class="warn">Analisis gagal: ${r.pesan || "-"}</p><div id="plotAnaData" class="plot"></div><pre></pre>`;
+      H.querySelector("pre").textContent = r.rincian || "";
+      Plotly.react("plotAnaData", [{ x: r.t, y: r.y, mode: "lines+markers", marker: { size: 3 }, name: "data" }],
+        layoutDasar("Data", "Waktu (s)", "Ketinggian (m)"), cfgPlot);
+      setStatus("Analisis gagal: " + r.pesan, "err");
+      $("btnAnaSimpan").disabled = true;
+      return;
+    }
+    const kartu = [
+      ["e (tinggi)", fmt(r.e_tinggi) + " ± " + fmt(r.sd_e)], ["e (regresi)", fmt(r.e_regresi)],
+      ["e (kecepatan)", fmt(r.e_kecepatan)], ["e (waktu)", fmt(r.e_waktu)],
+      ["g estimasi (m/s²)", fmt(r.g_estimasi, 3)], ["Jumlah pantulan", r.n_pantulan],
+      ["Energi tersisa", fmt(r.energi_sisa * 100, 1) + " %"], ["R² regresi", fmt(r.r2, 4)],
+    ];
+    H.innerHTML =
+      '<div class="cards">' + kartu.map((k) => `<div class="card"><span>${k[0]}</span><b>${k[1]}</b></div>`).join("") + "</div>" +
+      (r.peringatan.length ? r.peringatan.map((w) => `<p class="warn">⚠ ${w}</p>`).join("") : "") +
+      '<div id="plotAnaData" class="plot"></div><div id="plotAnaDecay" class="plot" style="height:280px"></div>' +
+      "<h4>Puncak</h4>" + tabelHtml([["no", "No", 0], ["jenis", "Jenis", 0], ["t", "t (s)", 4], ["h", "h fit (m)", 5], ["h_sampel", "h sampel (m)", 5], ["n_fit", "titik fit", 0], ["g", "g fit", 3]], r.tabel_puncak) +
+      "<h4>Tumbukan</h4>" + tabelHtml([["no", "No", 0], ["t", "t (s)", 4], ["h_sebelum", "h sebelum", 4], ["h_sesudah", "h sesudah", 4], ["e_tinggi", "e tinggi", 4], ["v_sebelum", "v−", 3], ["v_sesudah", "v+", 3], ["e_kec", "e kec.", 4], ["e_waktu", "e waktu", 4]], r.tabel_tumbukan) +
+      '<button class="s" id="btnRincian">📄 Unduh rincian perhitungan (TXT)</button><button class="s" id="btnTabelCsv">⬇ Tabel tumbukan (CSV)</button>' +
+      '<details><summary>Lihat rincian perhitungan</summary><pre id="rincianTeks"></pre></details>';
+    $("rincianTeks").textContent = r.rincian;
+    const tr = [{ x: r.t, y: r.y, mode: "markers", marker: { size: 4, color: "#888" }, name: "data" }];
+    r.kurva.forEach((k, i) => tr.push({ x: k.t, y: k.y, mode: "lines", line: { color: "#d2691e", width: 2 }, name: "fit parabola", showlegend: i === 0 }));
+    tr.push({ x: r.puncak_t, y: r.puncak_y, mode: "markers", name: "puncak", marker: { symbol: "triangle-down", size: 9, color: "crimson" } });
+    tr.push({ x: r.kontak_t, y: r.kontak_t.map(() => r.y_lantai), mode: "markers", name: "tumbukan", marker: { symbol: "triangle-up", size: 8, color: "green" } });
+    Plotly.react("plotAnaData", tr, { ...layoutDasar("Data, fit parabola, puncak, dan tumbukan", "Waktu (s)", "Ketinggian (m)"),
+      shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: r.y_lantai, y1: r.y_lantai, line: { dash: "dash", width: 1 } }] }, cfgPlot);
+    const n = r.tinggi.map((_, i) => i);
+    const kemiringan = 2 * Math.log(r.e_regresi);
+    Plotly.react("plotAnaDecay", [
+      { x: n, y: r.tinggi, mode: "lines+markers", name: "h dari fit" },
+      { x: n, y: n.map((i) => r.tinggi[0] * Math.exp(kemiringan * i)), mode: "lines", name: `regresi: e = ${fmt(r.e_regresi)}`, line: { dash: "dash", color: "crimson" } },
+    ], { ...layoutDasar("Peluruhan tinggi puncak", "Indeks puncak", "h (m, log)"), yaxis: { type: "log", title: "h (m, log)" } }, cfgPlot);
+    $("btnRincian").onclick = () => unduh("rincian_perhitungan.txt", r.rincian);
+    $("btnTabelCsv").onclick = () => {
+      const k = ["no", "t", "h_sebelum", "h_sesudah", "e_tinggi", "v_sebelum", "v_sesudah", "e_kec", "e_waktu"];
+      unduh("tabel_tumbukan.csv", k.join(",") + "\n" + r.tabel_tumbukan.map((b) => k.map((x) => b[x] ?? "").join(",")).join("\n"), "text/csv");
+    };
+    $("btnAnaSimpan").disabled = false;
+    setStatus(`Analisis selesai: e (regresi) = ${fmt(r.e_regresi)}, ${r.n_pantulan} pantulan.`, "ok");
+  } catch (e) {
+    console.error(e);
+    setStatus("Analisis gagal: " + e.message, "err");
+  }
+}
+$("btnAna").onclick = jalankanAna;
+$("btnAnaSimpan").onclick = async () => {
+  if (!anaTerakhir || !anaTerakhir.berhasil) return;
+  const r = anaTerakhir;
+  await DB.tambah({
+    jenis: "analisis", waktu: new Date().toISOString(), csv: anaCsv,
+    ringkas: `e regresi ${fmt(r.e_regresi)} · e tinggi ${fmt(r.e_tinggi)} · e kecepatan ${fmt(r.e_kecepatan)} · ${r.n_pantulan} pantulan`,
+    hasil: { e_regresi: r.e_regresi, e_tinggi: r.e_tinggi, e_kecepatan: r.e_kecepatan, e_waktu: r.e_waktu, g: r.g_estimasi, n: r.n_pantulan },
+  });
+  setStatus("Hasil analisis (beserta data) disimpan ke Riwayat di perangkat ini.", "ok");
+};
+
+// ---------- RIWAYAT ----------
+async function tampilRiwayat() {
+  const daftar = (await DB.semua()).reverse();
+  const L = $("riwList");
+  if (!daftar.length) { L.innerHTML = '<p class="hint">Belum ada riwayat.</p>'; return; }
+  L.innerHTML = "<table><thead><tr><th>Waktu</th><th>Jenis</th><th>Ringkasan</th><th>Aksi</th></tr></thead><tbody>" +
+    daftar.map((d) => `<tr><td>${new Date(d.waktu).toLocaleString("id-ID")}</td><td>${d.jenis}</td>` +
+      `<td style="text-align:left">${String(d.ringkas).replace(/</g, "&lt;").slice(0, 160)}</td>` +
+      `<td><button class="s" data-a="buka" data-id="${d.id}">Buka</button><button class="s" data-a="hapus" data-id="${d.id}">Hapus</button></td></tr>`).join("") +
+    "</tbody></table>";
+  L.querySelectorAll("button").forEach((b) => (b.onclick = async () => {
+    const id = Number(b.dataset.id);
+    const d = daftar.find((x) => x.id === id);
+    if (b.dataset.a === "hapus") { await DB.hapus(id); tampilRiwayat(); return; }
+    if (d.jenis === "simulasi") {
+      Object.entries(d.param).forEach(([k, v]) => { const el = $("p_" + k); if (el) el.value = v; });
+      document.querySelector('nav button[data-tab="sim"]').click(); jalankanSim();
+    } else {
+      $("csvTeks").value = d.csv;
+      document.querySelector('nav button[data-tab="ana"]').click(); jalankanAna();
+    }
+  }));
+}
+$("btnRiwEkspor").onclick = async () => unduh("riwayat_lab_pantulan.json", JSON.stringify(await DB.semua(), null, 1), "application/json");
+$("btnRiwHapus").onclick = async () => { if (confirm("Hapus semua riwayat di perangkat ini?")) { await DB.kosongkan(); tampilRiwayat(); } };
+
+mulaiPython();
+</script>
+</body>
+</html>
